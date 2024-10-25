@@ -6,6 +6,7 @@ import (
 	"golang-porto/backend/pkg/routes"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
@@ -18,7 +19,11 @@ func main() {
 	// Inisialisasi controller dengan database
 	controllers.Initialize(db)
 
-	// Protected routes (require authentication)
+	// Middleware CORS
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"http://localhost:3000"},
+		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
+	}))
 
 	// Protected routes here
 	routes.SetupRoutes(e)
