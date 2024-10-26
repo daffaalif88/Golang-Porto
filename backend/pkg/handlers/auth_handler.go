@@ -5,10 +5,12 @@ import (
 	"golang-porto/backend/pkg/utils"
 	"net/http"
 
-	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
+// Inisialisasi instance DB yang akan digunakan di controller
 var db *gorm.DB
 
 // Initialize mengatur koneksi database untuk controller
@@ -19,24 +21,34 @@ func Initialize(dbConn *gorm.DB) {
 // Function for logging in
 func Login(c echo.Context) error {
 	var user models.User
+	var storedUser models.User
 
-	// Check user credentials and generate a JWT token
+	// Bind JSON body ke struct user
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid data"})
 	}
 
-	// Check if credentials are valid (replace this logic with real authentication)
-	if user.Email == "user" && user.Password == "password" {
-		// Generate a JWT token
-		token, err := utils.GenerateToken(user.ID)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error generating token"})
-		}
-
-		return c.JSON(http.StatusOK, map[string]string{"token": token})
+	// Ambil user dari database berdasarkan username
+	if err := db.Where("Email = ?", user.Email).First(&storedUser).Error; err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Email or password"})
 	}
 
-	return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+	// Verifikasi password (dengan bcrypt atau metode hashing yang kamu gunakan)
+	if err := VerifyPassword(storedUser.Password, user.Password); err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Email or password"})
+	}
+
+	// Generate JWT token
+	token, err := utils.GenerateToken(storedUser.ID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate token"})
+	}
+
+	// Kirim token dalam respons
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Login successful",
+		"token":   token,
+	})
 }
 
 // Function for registering a new user (for demonstration purposes)
@@ -47,6 +59,13 @@ func Register(c echo.Context) error {
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid data"})
 	}
+
+	// Hash password sebelum menyimpan
+	hashedPassword, err := HashPassword(user.Password)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
+	}
+	user.Password = hashedPassword // Simpan password yang sudah di-hash
 
 	// Simpan data user ke database
 	if err := db.Create(&user).Error; err != nil {
@@ -66,4 +85,25 @@ func Register(c echo.Context) error {
 
 	// Kirim response sukses
 	return c.JSON(http.StatusCreated, map[string]string{"message": "User and profile registered successfully"})
+}
+
+func HashPassword(password string) (string, error) {
+	// Menghasilkan hash dari password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
+// VerifyPassword akan memverifikasi password dengan hash
+func VerifyPassword(hashedPassword, password string) error {
+	// Memeriksa password yang dimasukkan dengan hash
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+// Function for logging out
+func Logout(c echo.Context) error {
+	// Berikan pesan logout berhasil atau perbarui logika jika memerlukan tindakan tambahan di server
+	return c.JSON(http.StatusOK, map[string]string{"message": "Logout successful"})
 }

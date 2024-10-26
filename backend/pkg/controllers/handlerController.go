@@ -92,3 +92,9 @@ func VerifyPassword(hashedPassword, password string) error {
 	// Memeriksa password yang dimasukkan dengan hash
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
+
+// Function for logging out
+func Logout(c echo.Context) error {
+	// Berikan pesan logout berhasil atau perbarui logika jika memerlukan tindakan tambahan di server
+	return c.JSON(http.StatusOK, map[string]string{"message": "Logout successful"})
+}
